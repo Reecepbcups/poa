@@ -5,8 +5,14 @@ import (
 )
 
 var (
-	ParamsKey            = collections.NewPrefix(0)
+	ParamsKey = collections.NewPrefix(0)
+
 	PendingValidatorsKey = collections.NewPrefix(1)
+
+	// TotalValSetChangeKey is the total amount the validator-set has changed since the last block update
+	TotalValSetChangeKey = collections.NewPrefix(2)
+
+	TotalPrePowerUpdates = collections.NewPrefix(3)
 )
 
 const (

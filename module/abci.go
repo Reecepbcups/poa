@@ -13,6 +13,22 @@ func (am AppModule) BeginBlocker(ctx context.Context) error {
 		return err
 	}
 
+	// Reset the block cache
+	// if v := am.keeper.GetTotalValSetChange(ctx); v != 0 {
+	// 	am.keeper.SetTotalValSetChange(ctx, 0)
+	// }
+
+	// Sets this blocks cached total Validator power (used to validate we do not set >33% of total power in 1 block)
+	// This may not be needed? (if we can hold off on SetLastTotalPower until the next begin block? (i don't think so though))
+	// if last, err := am.keeper.GetStakingKeeper().GetLastTotalPower(ctx); err != nil {
+	// 	return err
+	// } else {
+	// 	// Update the cache
+	// 	if am.keeper.GetTotalPrePowerUpdates(ctx) != last.Uint64() {
+	// 		am.keeper.SetTotalPrePowerUpdates(ctx, last.Uint64())
+	// 	}
+	// }
+
 	for _, v := range vals {
 		switch v.GetStatus() {
 

@@ -10,4 +10,5 @@ var (
 	ErrNotAnAuthority               = sdkerrors.Register(ModuleName, 3, "not an authority")
 	ErrUnsafePower                  = sdkerrors.Register(ModuleName, 4, "unsafe: msg.Power is >30%% of total power, set unsafe=true to override")
 	ErrMustProvideAtLeastOneAddress = sdkerrors.Register(ModuleName, 5, "must provide at least one address")
+	ErrTooManyValidatorsChanged     = sdkerrors.Register(ModuleName, 6, "too many validators (>30%%) changed within one block will result in ibc issues")
 )

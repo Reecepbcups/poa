@@ -3,9 +3,10 @@ package keeper
 import (
 	"context"
 	"fmt"
+	"math"
 
 	errorsmod "cosmossdk.io/errors"
-	"cosmossdk.io/math"
+	sdkmath "cosmossdk.io/math"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -15,15 +16,37 @@ import (
 	"github.com/strangelove-ventures/poa"
 )
 
+var _ poa.MsgServer = msgServer{}
+
 type msgServer struct {
 	k Keeper
 }
 
-var _ poa.MsgServer = msgServer{}
-
 // NewMsgServerImpl returns an implementation of the module MsgServer interface.
 func NewMsgServerImpl(keeper Keeper) poa.MsgServer {
 	return &msgServer{k: keeper}
+}
+
+func (ms msgServer) CheckChangeValidatorsPercentForIBC(ctx context.Context) error {
+	// 33% of the total set power must not be updated within the trusting period
+	// for IBC light clients to be able to verify the validator set.
+	maxUpdateLimit := ms.k.GetTotalPrePowerUpdates(ctx) / 3
+	valSetUpdated := ms.k.GetTotalValSetChange(ctx)
+
+	fmt.Println("maxUpdateLimit", maxUpdateLimit)
+	fmt.Println("valSetUpdated", valSetUpdated)
+
+	if maxUpdateLimit == 0 {
+		// set it with the
+		return nil
+	}
+
+	if valSetUpdated >= maxUpdateLimit {
+		// If the total power change is greater than 33% of the total set power in this block, return an error.
+		return poa.ErrTooManyValidatorsChanged
+	}
+
+	return nil
 }
 
 func (ms msgServer) SetPower(ctx context.Context, msg *poa.MsgSetPower) (*poa.MsgSetPowerResponse, error) {
@@ -44,8 +67,9 @@ func (ms msgServer) SetPower(ctx context.Context, msg *poa.MsgSetPower) (*poa.Ms
 		}
 	}
 
+	// If the message is not flagged as unsafe, validate the power & IBC checks
 	if !msg.Unsafe {
-		totalPOAPower := math.ZeroInt()
+		totalPOAPower := sdkmath.ZeroInt()
 		allDelegations, err := ms.k.stakingKeeper.GetAllDelegations(ctx)
 		if err != nil {
 			return nil, err
@@ -55,14 +79,49 @@ func (ms msgServer) SetPower(ctx context.Context, msg *poa.MsgSetPower) (*poa.Ms
 			totalPOAPower = totalPOAPower.Add(del.Shares.TruncateInt())
 		}
 
-		if msg.Power > totalPOAPower.Mul(math.NewInt(30)).Quo(math.NewInt(100)).Uint64() {
+		// Verify the new set power is not >30% of the set.
+		if msg.Power > totalPOAPower.Mul(sdkmath.NewInt(30)).Quo(sdkmath.NewInt(100)).Uint64() {
 			return nil, poa.ErrUnsafePower
 		}
 	}
 
+	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
+	if err != nil {
+		return nil, sdkerrors.ErrInvalidAddress.Wrapf("invalid validator address: %s", err)
+	}
+
+	// validatorTokens, err := ms.k.stakingKeeper.GetValidatorUpdates()
+
+	val, err := ms.k.stakingKeeper.GetValidator(ctx, valAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("val.Tokens", val.Tokens)
+
 	// sets the new POA power for the validator
 	if _, err := ms.updatePOAPower(ctx, msg.ValidatorAddress, int64(msg.Power)); err != nil {
 		return nil, err
+	}
+
+	// totalDiff := math.Abs(msg.Power - uint64(previousPower))
+	totalDiff := uint64(math.Abs(float64(msg.Power) - float64(val.Tokens.Int64())))
+
+	fmt.Println("previousPower", val.Tokens)
+	fmt.Println("totalDiff", totalDiff)
+	fmt.Println("msg.Power", msg.Power)
+
+	// Update the validator set changes for this block.
+	// updatedPower := ms.k.GetTotalValSetChange(ctx) + math.NewIntFromUint64(msg.Power).SubRaw(previousPower).Uint64()
+	updatedPower := ms.k.GetTotalValSetChange(ctx) + totalDiff
+	ms.k.SetTotalValSetChange(ctx, updatedPower)
+
+	if !msg.Unsafe {
+		// Verify the total changed power of this set migration is not >33% of the set as
+		// this would break IBC light-clients.
+		if err := ms.CheckChangeValidatorsPercentForIBC(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	return &poa.MsgSetPowerResponse{}, nil
@@ -180,7 +239,7 @@ func (ms msgServer) CreateValidator(ctx context.Context, msg *poa.MsgCreateValid
 		return nil, err
 	}
 
-	validator.MinSelfDelegation = math.NewInt(1)
+	validator.MinSelfDelegation = sdkmath.NewInt(1)
 
 	// appends the validator to a queue to wait for approval from an admin.
 	if err := ms.k.AddPendingValidator(ctx, validator, pk); err != nil {
@@ -313,10 +372,10 @@ func (ms msgServer) updatePOAPower(ctx context.Context, valOpBech32 string, powe
 	delegation := stakingtypes.Delegation{
 		DelegatorAddress: sdk.AccAddress(valAddr.Bytes()).String(),
 		ValidatorAddress: val.OperatorAddress,
-		Shares:           math.LegacyNewDec(power),
+		Shares:           sdkmath.LegacyNewDec(power),
 	}
 
-	val.Tokens = math.NewIntFromUint64(uint64(power))
+	val.Tokens = sdkmath.NewIntFromUint64(uint64(power))
 	val.DelegatorShares = delegation.Shares
 	val.Status = stakingtypes.Bonded
 	if err := ms.k.stakingKeeper.SetValidator(ctx, val); err != nil {

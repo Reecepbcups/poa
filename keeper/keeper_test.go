@@ -128,7 +128,7 @@ func GenAcc() valSetup {
 }
 
 func (f *testFixture) createBaseStakingValidators(t *testing.T) {
-	bondCoin := sdk.NewCoin("stake", math.NewInt(1_000_000))
+	bondCoin := sdk.NewCoin("stake", math.NewInt(10_000_000))
 
 	vals := []valSetup{
 		GenAcc(),
@@ -155,7 +155,7 @@ func (f *testFixture) createBaseStakingValidators(t *testing.T) {
 		_, err := f.msgServer.SetPower(f.ctx, &poa.MsgSetPower{
 			Sender:           f.addrs[0].String(),
 			ValidatorAddress: valAddr,
-			Power:            1_000_000,
+			Power:            bondCoin.Amount.Uint64(),
 			Unsafe:           true,
 		})
 		require.NoError(t, err)
@@ -176,7 +176,15 @@ func (f *testFixture) createBaseStakingValidators(t *testing.T) {
 			panic(err)
 		}
 
+		// if err := f.stakingKeeper.SetLastValidatorPower(f.ctx, valAddrBz, bondCoin.Amount.Int64()); err != nil {
+		// 	panic(err)
+		// }
 	}
+
+	// totalSet := bondCoin.Amount.MulRaw(int64(len(vals)))
+	// if err := f.stakingKeeper.SetLastTotalPower(f.ctx, totalSet); err != nil {
+	// 	panic(err)
+	// }
 }
 
 func CreateNewValidator(moniker string, opAddr string, pubKey cryptotypes.PubKey, amt int64) poa.Validator {
@@ -231,6 +239,5 @@ func (f *testFixture) CreatePendingValidator(name string, power uint64) sdk.ValA
 
 func (f *testFixture) IncreaseBlock(amt int64) ([]abci.ValidatorUpdate, error) {
 	f.ctx = f.ctx.WithBlockHeight(f.ctx.BlockHeight() + amt)
-	updates, err := f.stakingKeeper.ApplyAndReturnValidatorSetUpdates(f.ctx)
-	return updates, err
+	return f.stakingKeeper.ApplyAndReturnValidatorSetUpdates(f.ctx)
 }

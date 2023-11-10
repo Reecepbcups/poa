@@ -278,6 +278,60 @@ func TestRemoveValidator(t *testing.T) {
 	}
 }
 
+// func TestModifyTooMuchOfTheSetForIBCLightClients(t *testing.T) {
+// 	f := SetupTest(t)
+// 	require := require.New(t)
+
+// 	vals, err := f.stakingKeeper.GetValidators(f.ctx, 100)
+// 	require.NoError(err)
+
+// 	totalBonded := math.ZeroInt()
+// 	for _, val := range vals {
+// 		totalBonded = totalBonded.Add(val.GetBondedTokens())
+// 	}
+// 	fmt.Println("totalBonded", totalBonded)
+
+// 	testCases := []struct {
+// 		name         string
+// 		request      []*poa.MsgSetPower
+// 		expectErrMsg string
+// 	}{
+// 		{
+// 			name: "update too much",
+// 			request: []*poa.MsgSetPower{
+// 				{
+// 					Sender:           f.addrs[0].String(),
+// 					ValidatorAddress: vals[0].OperatorAddress,
+// 					// Validator was 10m before, the difference here
+// 					Power:            18_123_000,
+// 					Unsafe:           false,
+// 				},
+// 			},
+// 			expectErrMsg: "",
+// 		},
+// 	}
+
+// 	for _, tc := range testCases {
+// 		tc := tc
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			f.k.SetTotalValSetChange(f.ctx, uint64(0))
+// 			f.k.SetTotalPrePowerUpdates(f.ctx, totalBonded.Uint64())
+
+// 			updates, err := f.IncreaseBlock(1)
+// 			require.NoError(err)
+// 			fmt.Println(updates)
+
+// 			for _, req := range tc.request {
+
+// 				fmt.Println(req)
+// 				_, err = f.msgServer.SetPower(f.ctx, req)
+// 				fmt.Println(err)
+// 			}
+
+// 		})
+// 	}
+// }
+
 // mintTokensToBondedPool mints tokens to the bonded pool so the validator set
 // in testing can be removed.
 // In the future, this same logic would be run during the migration from POA->POS.
